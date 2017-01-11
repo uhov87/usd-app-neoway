@@ -1,0 +1,8 @@
+*~
+*.so
+*.so.*
+*.o
+app
+version.info
+*.bak
+release_flag.h

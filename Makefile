@@ -1,4 +1,4 @@
-VERSION := fw version: v1.48
+VERSION := fw version: v2.48
 CC := /opt/am1808/CodeSourcery/Sourcery_G++_Lite/bin/arm-none-linux-gnueabi-gcc
 LD := /opt/am1808/CodeSourcery/Sourcery_G++_Lite/bin/arm-none-linux-gnueabi-ld
 STRIP := /opt/am1808/CodeSourcery/Sourcery_G++_Lite/bin/arm-none-linux-gnueabi-strip
