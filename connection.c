@@ -587,6 +587,8 @@ void * gsmListener_Do( void * param )
 
 	connection_t * connection = (connection_t *)param;
 
+	GSM_SetNStatusToDefault();
+
 	while( 1 )
 	{
 		SVISOR_THREAD_SEND(THREAD_GSM_LISTENER);
@@ -759,6 +761,13 @@ BOOL CONNECTION_CheckTimeToConnect( BOOL * service )
 
 			if ( COMMON_CheckDts( &startDts , &currentDts ) == TRUE )
 			{
+				if ( COMMON_GetDtsDiff__Alt(&startDts, &currentDts, BY_MONTH) > 0 )
+				{
+					startDts.d.d = 1 ;
+					startDts.d.m = currentDts.d.m ;
+					startDts.d.y = currentDts.d.y ;
+				}
+
 				if ( (calendar->interval > 0) && ( (calendar->ratio == CONNECTION_INTERVAL_DAY) || (calendar->ratio == CONNECTION_INTERVAL_HOUR) || (calendar->ratio == CONNECTION_INTERVAL_WEEK) ))
 				{
 					dateTimeStamp beginConnectionWindowDts;

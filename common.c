@@ -2379,230 +2379,6 @@ char * BOOL_VAL(BOOL val){
 //
 //
 
-unsigned char * COMMON_FindNextSms(unsigned char * buf, smsBuffer_t * smsBuf)
-{
-	DEB_TRACE(DEB_IDX_COMMON)
-
-	/**
-	* This function returns OK if sms was found in incoming buffer. Also it stuff "smsBuffer_t" structure.
-	*
-	*/
-
-	unsigned char * res = NULL;
-
-	if ( (strstr((char *)buf , "+CMGL: ")!= NULL) && (strstr((char *)buf, "OK")!= NULL))
-	{
-		/**
-		 *
-		 * Searching for 3 bracket, because the phone number locate after 3 bracket
-		 * Then searching for 4 bracket which close the text block contains the phone number
-		 * then searching for first '\n', because the smsText is following after that
-		 *
-		 */
-
-		int bracketCounter = 0 ;
-		int idx = 0;
-
-		buf = (unsigned char *)strstr((char *)buf , "+CMGL: ") ;
-
-		/**
-		  *+CMGR: "REC READ","+79616321904","","13/04/01,15:42:38+16"
-		  *Uspd ipp 225.35.74.2:10100
-		  */
-
-
-		/*
-		 *
-		 *huawei
-		 *
-		 *
-
-		02-12-13 14:33:50:
-		GSM AT+CMGL="ALL"
-		+CMGL: 1,"REC UNREAD","+79616321904",,"13/12/02,14:21:12+16"
-		Uspd getsnsq
-
-
-		OK
-
-
-
-		02-12-13 14:33:51:
-		GSM AT+CMGR=1
-		+CMGR: "REC READ","+79616321904",,"13/12/02,14:21:12+16"
-		Uspd getsnsq
-
-		OK
-
-		*
-		*
-		*/
-
-
-
-		//COMMON_STR_DEBUG( DEBUG_COMMON "###################\nlength=%d\nbuf: %s", bufLength,buf);
-
-		COMMON_STR_DEBUG( DEBUG_COMMON "SSCANF FOR SMS NUMBER");
-		unsigned int currentSmsNumb = 0;
-		sscanf((char *)buf , "+CMGL: %u" , &currentSmsNumb);
-		COMMON_STR_DEBUG( DEBUG_COMMON "SSCANFED SUCCESS");
-
-		unsigned char * phoneNumber = NULL;
-		int phoneNumberLength = -1;
-		unsigned char * smsText = NULL;
-
-		unsigned char * endPos = NULL;
-		endPos = (unsigned char *)strstr((char *)(buf+1) , "\r\n\r\n+CMGL: ");
-		if (endPos == NULL)
-		{
-			COMMON_STR_DEBUG( DEBUG_COMMON "CAN NOT FIND NEXT +CMGL: , SEARCHING FOR OK");
-			endPos = (unsigned char *)strstr((char *)(buf+1) , "\r\n\r\n\r\nOK");
-			if (endPos == NULL)
-				return res;
-		}
-		else
-		{
-			COMMON_STR_DEBUG( DEBUG_COMMON "FIRST SMS WAS FOUNDED");
-		}
-
-		//for( ; index < bufLength ; index++)
-		while(&buf[idx] != endPos)
-		{
-			//COMMON_STR_DEBUG( DEBUG_GSM "%x\n",buf[index]);
-			if (buf[idx] == '\"')
-			{
-				bracketCounter++;
-				COMMON_STR_DEBUG( DEBUG_COMMON "bracket was found");
-			}
-			if ((bracketCounter == 3) && (phoneNumber == NULL))
-			{
-				phoneNumber = &buf[idx + 1];
-			}
-			if (bracketCounter == 3)
-				phoneNumberLength++;
-			if ((buf[idx] == '\n') && (smsText==NULL))
-			{
-				smsText = &buf[idx + 1];
-				break;
-			}
-			idx++;
-		}
-
-		if ( (phoneNumber == NULL) || (smsText == NULL))
-		{
-			COMMON_STR_DEBUG( DEBUG_COMMON "SmsParseBuffer() - exit. Pointers are NULL\nsmsText=%p\nphoneNumber=%p", smsText , phoneNumber);
-			return res;
-		}
-
-		memcpy(smsBuf->phoneNumber , phoneNumber , phoneNumberLength);
-
-		int smsTextLength = /*strstr(smsText , "\r\n\r\nOK\r\n")*/ endPos - smsText ;
-		if (smsTextLength > SMS_TEXT_LENGTH)
-			smsTextLength = SMS_TEXT_LENGTH - 1 ;
-
-		memcpy(smsBuf->incomingText , smsText , smsTextLength);
-
-		smsBuf->smsStorageNumber = currentSmsNumb ;
-
-		COMMON_STR_DEBUG( DEBUG_GSM "\n!!!!!!!!!!!!!!!\r\nTEL: %s\nNUMB: %u\nTEXT: %s  \r\n!!!!!!!!!!!!!!!", smsBuf->phoneNumber , smsBuf->smsStorageNumber , smsBuf->incomingText);
-
-	   // buf = buf + 1;
-
-		res = buf;
-
-	}
-	return res;
-}
-
-//
-//
-//
-
-int COMMON_FindSmsIn_CMGR_Output(unsigned char * buf, const int bufLength , smsBuffer_t * smsBuf)
-{
-	COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output start");
-	int res = ERROR_GENERAL ;
-
-	if ( !smsBuf )
-	{
-		COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output smsBuf is null");
-		return res ;
-	}
-
-	COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output searching for +CMGR: and OK in buffer");
-
-	char * cmgrPos = strstr((char *)buf , "+CMGR: ");
-	char * okPos = strstr((char *)buf, "\r\n\r\nOK") ;
-	if ( (cmgrPos == NULL) || (okPos == NULL))
-	{
-		COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output can not find +CMGR: or OK in buffer");
-		return res ;
-	}
-
-	//searching for phone number
-	int idx = 0;
-	int bracketCounter = 0 ;
-
-	char * phoneNumber = NULL ;
-	int phoneNumberLength = -1 ;
-	char * smsText = NULL ;
-
-	COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output() searching for phone number");
-
-	for(  ; idx < bufLength ; ++idx )
-	{
-		if ( cmgrPos[idx] == '\"' )
-		{
-			COMMON_STR_DEBUG( DEBUG_COMMON "bracket was found");
-			++bracketCounter ;
-		}
-
-		if ( ( bracketCounter == 3  ) && ( phoneNumber == NULL ) )
-		{
-			COMMON_STR_DEBUG( DEBUG_COMMON "phone number was found");
-			phoneNumber = (char *)&cmgrPos[idx + 1];
-		}
-
-		if ( ( bracketCounter == 3  ) && ( phoneNumber != NULL ) )
-		{
-			phoneNumberLength++;
-		}
-
-		if ((cmgrPos[idx] == '\n') && (smsText==NULL))
-		{
-			smsText = (char *)&cmgrPos[idx + 1];
-			break;
-		}
-	}
-
-	if ( (phoneNumber == NULL) || (smsText == NULL))
-	{
-		COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output() - exit. Pointers are NULL\nsmsText=%p\nphoneNumber=%p", smsText , phoneNumber);
-		return res;
-	}
-
-	COMMON_STR_DEBUG( DEBUG_COMMON "COMMON_FindSmsIn_CMGR_Output() phoneNumber and smsText were been found");
-
-	memcpy(smsBuf->phoneNumber , phoneNumber , phoneNumberLength);
-
-	int smsTextLength = okPos - smsText ;
-
-	if (smsTextLength > SMS_TEXT_LENGTH)
-		smsTextLength = SMS_TEXT_LENGTH - 1 ;
-
-	memcpy(smsBuf->incomingText , smsText , smsTextLength);
-
-	COMMON_STR_DEBUG( DEBUG_GSM "\n!!!!!!!!!!!!!!!\r\nTEL: %s\nNUMB: %u\nTEXT: %s  \r\n!!!!!!!!!!!!!!!", smsBuf->phoneNumber , smsBuf->smsStorageNumber , smsBuf->incomingText);
-
-	res = OK ;
-
-	return res ;
-}
-
-//
-//
-//
-
 void COMMMON_CreateDescriptionForConnectEvent(unsigned char * evDesc , connection_t * connection , BOOL serviceMode)
 {
 	DEB_TRACE(DEB_IDX_COMMON)
@@ -3024,11 +2800,11 @@ int COMMON_RemoveComments(char * text , int * textLength , char startCharacter )
 //
 //
 
-int COMMON_CheckPhrasePresence( unsigned char ** searchPhrases , unsigned char * buf , int bufLength , unsigned char * foundedMessage )
+BOOL COMMON_CheckPhrasePresence( unsigned char ** searchPhrases , unsigned char * buf , int bufLength , unsigned char * foundedMessage )
 {
 	DEB_TRACE(DEB_IDX_COMMON)
 
-	int res = ERROR_GENERAL ;
+	BOOL res = FALSE ;
 
 	int presenceFlag = 0 ;
 	int searchIndex = 0 ;
@@ -3058,7 +2834,7 @@ int COMMON_CheckPhrasePresence( unsigned char ** searchPhrases , unsigned char *
 				{
 					snprintf( (char *)foundedMessage , 64 , "%s" , currentSearch);
 				}
-				return OK ;
+				return TRUE ;
 			}
 		}
 		currentSearch = searchPhrases[ ++searchIndex ];

@@ -49,6 +49,9 @@ extern "C" {
 #define HM_FROM_S(___S___) (___S___/60/60), ((___S___/60)%60)
 #define HMS_FROM_S(___S___) (___S___/60/60), ((___S___/60)%60), (___S___%60)
 
+#define DEF_TO_XSTR(__A__) DEF_TO_STR(__A__)
+#define DEF_TO_STR(__A__) #__A__
+
 // -------------------------------------------
 // embodiment part inclusion
 // -------------------------------------------
@@ -933,13 +936,16 @@ enum GUBANOV_D_QUIZ_STRATEGY
 #define GSM_OPERATOR_NAME_LENGTH 20
 #define GSM_CONNECTION_COUNTER "/home/root/gsmcounter"
 
-#define SIM1 1
-#define SIM2 0
+enum simIdx_e
+{
+	SIM2,
+	SIM1
+};
 
-
-
+#define GSM_POWERON_TIMEOUT 20
+#define GSM_NETWORK_REG_TIMEOUT 120
 #define PHONE_MAX_SIZE 45
-#define IO_ATTEMPTS 3
+
 #define TIMEOUT1 ( 30 + 15 ) //inactivity traffic timeout
 #define TIMEOUT2 60 //Time between two connection attempts  // was 60
 #define TIMEOUT3 (60*60*2) //waiting incoming call timeout
@@ -948,15 +954,30 @@ enum GUBANOV_D_QUIZ_STRATEGY
 #define GSM_LARGE_ANSWER_TIMEOUT 120
 
 #define MAX_MESSAGE_LENGTH 1460
-#define GSM_R_BUFFER_LENGTH 2048
 
-#define SIM_FIRST 1
-#define SIM_SECOND 2
-#define SIM_FIRST_THEN_SECOND 3
-#define SIM_SECOND_THEN_FIRST 4
+#define GSM_INPUT_BUF_SIZE 4096
+#define GSM_TASK_RX_SIZE 1024
+
+enum simPrinciple_e
+{
+	SIM_FIRST = 1 ,
+	SIM_SECOND = 2 ,
+	SIM_FIRST_THEN_SECOND = 3 ,
+	SIM_SECOND_THEN_FIRST = 4
+};
 
 #define SMS_TEXT_LENGTH 160
 
+enum gsmDialState_e
+{
+	GDS_OFFLINE,
+	GDS_WAIT,
+	GDS_NEED_TO_ANSW,
+	GDS_NEED_TO_HANG,
+	GDS_ONLINE
+};
+
+/*
 
 #define GSM_TASK_EMPTY 0
 #define GSM_TASK_WAIT 1
@@ -1040,6 +1061,7 @@ enum
 	GSM_PART_PASS ,
 	GSM_PART_APN
 }gsmApnPart;
+*/
 
 // -------------------------------------------
 // MICRON V1 part inclusion
@@ -1240,6 +1262,7 @@ enum
 #define PIO_PLC_RESET           ( 16*4 + 6 )  // GP4[6]
 #define PIO_PLC_NOT_OE          ( 16*4 + 7  ) // GP4[7]
 #define PIO_REBOOT				( 16*5 + 11 ) // GP5[11]
+#define PIO_PLC_POWER			( 16*7 + 14 )
 
 #endif
 
@@ -2129,6 +2152,62 @@ typedef struct gsmCpinProperties_s
 	unsigned int pin;
 } gsmCpinProperties_t;
 
+typedef struct neowayCmdWA_s
+{
+	unsigned char * cmd ;
+	unsigned char * waitAnsw ;
+	unsigned char ** answerBank ;
+	int timeout ;
+}neowayCmdWA_t;
+
+typedef struct neowayBuffer_s
+{
+	unsigned char buf[GSM_INPUT_BUF_SIZE] ;
+	int size ;
+}neowayBuffer_t;
+
+typedef struct neowayTask_s
+{
+	unsigned char * tx;
+	unsigned char rx[GSM_TASK_RX_SIZE];
+	int status ;
+	//uint timeout ;
+	unsigned char ** possibleAnswerBank ;
+}neowayTask_t;
+
+typedef struct neowayTcpReadBuf_s
+{
+	unsigned char buf[GSM_INPUT_BUF_SIZE];
+	unsigned int size;
+}neowayTcpReadBuf_t;
+
+typedef struct neowayStatus_s
+{
+	BOOL power;
+	BOOL simPresence ;
+	int dialState;
+	unsigned char currentSim ;
+	unsigned int smsStorSize ;	
+	BOOL serviceMode ;
+
+	unsigned int currSock;
+	unsigned int hangSock;
+
+	neowayTask_t task ;
+	neowayBuffer_t neowayBuffer ;
+
+	//dts
+	dateTimeStamp onlineDts;
+	dateTimeStamp lastDataDts;
+	dateTimeStamp powerOnDts;
+
+	//statistic
+	char opName[GSM_OPERATOR_NAME_LENGTH];
+	char imei[GSM_IMEI_LENGTH + 1];	
+	char ip[LINK_SIZE];
+	int sq;
+}neowayStatus_t;
+
 typedef struct connection_s{
 	//how many tries we can do with one sim before long sleep or sim change
 	unsigned int simTryes;
@@ -2610,6 +2689,7 @@ typedef struct uspdService_s
 	unsigned int crc ;
 }uspdService_t;
 
+/*
 typedef struct gsmTask_s
 {
 	unsigned char cmd[ GSM_R_BUFFER_LENGTH ];
@@ -2619,7 +2699,7 @@ typedef struct gsmTask_s
 	BOOL avalancheOutput;
 	unsigned char ** possibleAnswerBank;
 } gsmTask_t;
-
+*/
 typedef struct gubanovTariff_s
 {
 	int mm ;
@@ -2775,9 +2855,6 @@ void COMMON_ShiftTextUp( char * buf , int length);
 void COMMON_GetWebUIPass( unsigned char * pass );
 int COMMON_SetWebUIPass(unsigned char * pass );
 
-unsigned char * COMMON_FindNextSms(unsigned char * buf, smsBuffer_t * smsBuf);
-int COMMON_FindSmsIn_CMGR_Output(unsigned char * buf, const int bufLength , smsBuffer_t * smsBuf);
-
 void COMMON_CharArrayDisjunction(char * firstString , char * secondString, unsigned char * result);
 void COMMMON_CreateDescriptionForConnectEvent(unsigned char * evDesc , connection_t * connection, BOOL serviceMode);
 void COMMON_TranslateLongToChar(unsigned long counterDbID, unsigned char * result);
@@ -2795,7 +2872,7 @@ void COMMON_SetNewTimeAbort();
 
 int COMMON_SearchBlock(char * text , int textLength, char * blockName , blockParsingResult_t ** searchResult , int * searchResultSize) ;
 int COMMON_RemoveComments(char * text , int * textLength , char startCharacter ) ;
-int COMMON_CheckPhrasePresence( unsigned char ** searchPhrases , unsigned char * buf , int bufLength , unsigned char * foundedMessage );
+BOOL COMMON_CheckPhrasePresence( unsigned char ** searchPhrases , unsigned char * buf , int bufLength , unsigned char * foundedMessage );
 
 int COMMON_WriteFileToFS(unsigned char * buffer , int bufferLength , unsigned char * fileName);
 int COMMON_GetFileFromFS(unsigned char ** buffer , int * bufferLength ,unsigned char * fileName);
