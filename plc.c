@@ -322,6 +322,18 @@ int PLC_InitializePlcBase(){
 	//go to reset-init loop
 	while (initTries < MAX_PLC_INIT_TRIES){
 
+
+		//disable plc power
+		res = PIO_SetValue(PIO_PLC_POWER, 0);
+		COMMON_Sleep(50);
+
+		//wait till 1 second
+		COMMON_Sleep(SECOND);
+
+		//enable plc power
+		res = PIO_SetValue(PIO_PLC_POWER, 1);
+		COMMON_Sleep(50);
+
 		//flush uart buffers
 		SERIAL_PLC_FLUSH();
 

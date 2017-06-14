@@ -308,6 +308,8 @@ int PIO_Initialize() {
 	if (res!=OK) return res;
 	res = PIO_Unexport(PIO_PLC_NOT_OE);
 	if (res!=OK) return res;
+	res = PIO_Unexport(PIO_PLC_POWER);
+	if (res!=OK) return res;
 
 	//export pio pins
 	res = PIO_Export(PIO_CLI_DIN);
@@ -339,6 +341,8 @@ int PIO_Initialize() {
 	res = PIO_Export(PIO_PLC_RESET);
 	if (res!=OK) return res;
 	res = PIO_Export(PIO_PLC_NOT_OE);
+	if (res!=OK) return res;
+	res = PIO_Export(PIO_PLC_POWER);
 	if (res!=OK) return res;
 
 	//set directions of pio
@@ -372,6 +376,8 @@ int PIO_Initialize() {
 	if (res!=OK) return res;
 	res = PIO_SetDirection(PIO_PLC_NOT_OE, PIO_OUT);
 	if (res!=OK) return res;
+	res = PIO_SetDirection(PIO_PLC_POWER, PIO_OUT);
+	if (res!=OK) return res;
 
 	//setup initial variables
 	res = PIO_SetValue(PIO_CLI_DIN, 0);
@@ -397,6 +403,8 @@ int PIO_Initialize() {
 	res = PIO_SetValue(PIO_PLC_RESET, 0);
 	if (res!=OK) return res;
 	res = PIO_SetValue(PIO_PLC_NOT_OE, 1);
+	if (res!=OK) return res;
+	res = PIO_SetValue(PIO_PLC_POWER, 0);
 	if (res!=OK) return res;
 
 	COMMON_STR_DEBUG(DEBUG_PIO "PIO_Initialize() %s", getErrorCode(res));
