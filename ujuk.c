@@ -206,6 +206,61 @@ void UJUK_ParseEventBuf(counter_t * counterPtr, const counterTransaction_t * tra
 
 	switch(counterPtr->journalNumber)
 	{
+		case 0x56:
+		{
+			event1.evType = EVENT_MAGNETIC_INDUCTION_START ;
+			event1.dts.t.s = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event1.dts.t.m = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event1.dts.t.h = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+
+			aIndex++ ;
+
+			event1.dts.d.d = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event1.dts.d.m = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event1.dts.d.y = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+
+			event2.evType = EVENT_MAGNETIC_INDUCTION_STOP ;
+
+			event2.dts.t.s = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event2.dts.t.m = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event2.dts.t.h = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+
+			aIndex++ ;
+
+			event2.dts.d.d = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event2.dts.d.m = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+			event2.dts.d.y = (unsigned char)COMMON_Translate2_10to10( (int)transaction->answer[aIndex++] );
+
+			if(COMMON_CheckDtsForValid(&event1.dts) == OK)
+			{
+				if (STORAGE_IsEventInJournal(&event1 , counterPtr->dbId) == TRUE)
+				{
+					if(COMMON_CheckDtsForValid(&event2.dts) == OK)
+					{
+						if (STORAGE_IsEventInJournal(&event2 , counterPtr->dbId) == FALSE)
+						{
+							event2.crc = STORAGE_CalcCrcForJournal(&event1);
+							STORAGE_SaveEvent(&event2 , counterPtr->dbId);
+						}
+					}
+					UJUK_StepToNextJournal(counterPtr);
+				}
+				else
+				{
+					event1.crc = STORAGE_CalcCrcForJournal(&event1);
+					event2.crc = STORAGE_CalcCrcForJournal(&event2);
+					STORAGE_SaveEvent(&event1 , counterPtr->dbId);
+					if(COMMON_CheckDtsForValid(&event2.dts) == OK)
+						STORAGE_SaveEvent(&event2 , counterPtr->dbId);
+					UJUK_StepToNextEvent(counterPtr);
+				}
+
+			}
+			else
+				UJUK_StepToNextEvent(counterPtr);
+		}
+		break;
+
 		case 0x53:
 		{
 			event1.evType = EVENT_OPENING_BOX ;
@@ -6892,6 +6947,25 @@ int UJUK_WritePSM(counter_t * counter, counterTask_t ** counterTask ,unsigned ch
 									}
 								}
 							}
+							else if ( strstr( blockParsingResult[ propertyIndex ].variable , "allowLoadPowerOnWithoutButtonPress") )
+							{
+								if ( atoi(blockParsingResult[ propertyIndex ].value) == 0 )
+								{
+									if ( res == OK )
+									{
+										((*counterTask)->powerControlTransactionCounter)++;
+										res = UJUK_Command_SetControlProgrammFlags( counter, COMMON_AllocTransaction(counterTask) , 0x33  );
+									}
+								}
+								else
+								{
+									if ( res == OK )
+									{
+										((*counterTask)->powerControlTransactionCounter)++;
+										res = UJUK_Command_SetControlProgrammFlags( counter, COMMON_AllocTransaction(counterTask) , 0x34  );
+									}
+								}
+							}
 						}
 					}
 				}
@@ -7226,6 +7300,13 @@ int UJUK_WritePSM(counter_t * counter, counterTask_t ** counterTask ,unsigned ch
 			break;
 		}
 	}
+
+	if ( (res == OK) && (((*counterTask)->powerControlTransactionCounter) == 0 ) )
+	{
+		res = ERROR_FILE_FORMAT ;
+	}
+
+
 
 	return res ;
 }
@@ -12857,9 +12938,22 @@ void UJUK_StepToNextJournal(counter_t * counter)
 		{
 			counter->eventsTotal = 9 ;
 			counter->journalNumber = 0x0A ;
+
+			if ((counter->type == TYPE_UJUK_SEB_1TM_03A) || \
+				(counter->type == TYPE_UJUK_PSH_4TM_05MD) || \
+				(counter->type == TYPE_UJUK_PSH_4TM_05MK) )
+			{
+				counter->journalNumber = 0x56 ;
+			}
 		}
 		break;
 
+		case 0x56:
+		{
+			counter->eventsTotal = 9 ;
+			counter->journalNumber = 0x0A ;
+		}
+		break;
 
 		case 0x0A:
 		{

@@ -11660,6 +11660,8 @@ int STORAGE_GetJournalNumberByEvent(uspdEvent_t * event , int * maxEventsNumber)
 			break;
 
 		case EVENT_SYNC_STATE_WORD_CH:
+		case EVENT_MAGNETIC_INDUCTION_START:
+		case EVENT_MAGNETIC_INDUCTION_STOP:
 			res = EVENT_COUNTER_JOURNAL_NUMBER_STATE_WORD;
 			break;
 
